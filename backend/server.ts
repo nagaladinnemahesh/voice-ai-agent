@@ -1,9 +1,11 @@
+import "dotenv/config";
+
 import express from "express";
 import dotenv from "dotenv";
 import appointmentRoutes from "./routes/appointmentRoutes";
 import agentRoutes from "./routes/agentRoutes";
 
-dotenv.config();
+// dotenv.config();
 
 const app = express();
 
