@@ -7,6 +7,8 @@ import agentRoutes from "./routes/agentRoutes";
 import { connectRedis } from "../memory/session_memory/redisClient";
 import sttRoutes from "./routes/sttRoutes";
 import ttsRoutes from "./routes/ttsRoutes";
+import { startVoiceGateway } from "./websocket/voiceGateway";
+import http from "http";
 
 // dotenv.config();
 
@@ -28,7 +30,11 @@ const PORT = process.env.PORT || 5000;
 async function startServer() {
   await connectRedis();
 
-  app.listen(PORT, () => {
+  const server = http.createServer(app);
+
+  startVoiceGateway(server);
+
+  server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
 }
