@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import appointmentRoutes from "./routes/appointmentRoutes";
 import agentRoutes from "./routes/agentRoutes";
 import { connectRedis } from "../memory/session_memory/redisClient";
+import sttRoutes from "./routes/sttRoutes";
 
 // dotenv.config();
 
@@ -14,6 +15,7 @@ app.use(express.json());
 
 app.use("/appointments", appointmentRoutes);
 app.use("/agent", agentRoutes);
+app.use("/stt", sttRoutes);
 
 app.get("/health", (req, res) => {
   res.json({ status: "Voice AI Agent is running" });
