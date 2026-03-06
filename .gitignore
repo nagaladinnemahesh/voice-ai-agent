@@ -1,3 +1,10 @@
 .env
 node_modules
 dist
+audioSamples/
+uploads/
+# generated TTS output
+*.wav
+*.aac
+*.mp3
+*.m4a
