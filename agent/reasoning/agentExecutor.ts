@@ -6,6 +6,7 @@ const openai = new OpenAI({
 });
 
 export async function runAgent(userInput: string) {
+  console.log("User Input:", userInput);
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
@@ -41,13 +42,20 @@ Example format:
 
   const text = response.choices[0].message.content || "";
 
-  const parsed = JSON.parse(text);
+  // removing markdown formatting if present
+  const cleaned = text.replace(/```json|```/g, "").trim();
+
+  const parsed = JSON.parse(cleaned);
+
+  console.log("LLM Response:", cleaned);
 
   const tool = tools[parsed.tool as keyof typeof tools];
 
   if (!tool) {
     throw new Error("Invalid tool requested by agent");
   }
+
+  console.log("Selected Tool:", parsed.tool);
 
   const result = await tool(parsed.parameters);
 
