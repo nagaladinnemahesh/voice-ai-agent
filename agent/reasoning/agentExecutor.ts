@@ -1,12 +1,20 @@
 import OpenAI from "openai";
 import { tools } from "../tools/toolRegistry";
+import {
+  getSession,
+  saveSession,
+} from "../../memory/session_memory/sessionManager";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function runAgent(userInput: string) {
+export async function runAgent(userInput: string, sessionId: string) {
   console.log("User Input:", userInput);
+  console.log("sessionId:", sessionId);
+
+  const session = await getSession(sessionId);
+  console.log("Session Context:", session);
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
@@ -34,6 +42,10 @@ Example format:
 `,
       },
       {
+        role: "system",
+        content: `Session Context: ${JSON.stringify(session || {})}`,
+      },
+      {
         role: "user",
         content: userInput,
       },
@@ -58,6 +70,13 @@ Example format:
   console.log("Selected Tool:", parsed.tool);
 
   const result = await tool(parsed.parameters);
+
+  await saveSession(sessionId, {
+    lastTool: parsed.tool,
+    parameters: parsed.parameters,
+  });
+
+  console.log("session saved:", sessionId);
 
   return result;
 }
