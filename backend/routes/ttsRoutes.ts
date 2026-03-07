@@ -8,10 +8,10 @@ router.post("/speak", async (req, res) => {
 
   const filePath = "./audioSamples/response.wav";
 
-  const audioPath = await textToSpeech(text, filePath);
+  const audioBuffer = await textToSpeech(text);
 
   res.json({
-    audio: audioPath,
+    audio: audioBuffer.toString("base64"),
   });
 });
 

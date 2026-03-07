@@ -14,26 +14,38 @@ export function startVoiceGateway(server: any) {
     ws.on("message", async (message: any) => {
       const requestId = uuidv4();
       console.log(`\n----- Voice Request ${requestId} -----`);
+
       const startTime = Date.now();
+
       try {
         const data = JSON.parse(message.toString());
 
-        const { audioPath, sessionId } = data;
-        console.log("Received audio:", audioPath);
+        const { audioBase64, sessionId } = data;
 
-        //speech to text
+        const audioBuffer = Buffer.from(audioBase64, "base64");
+
+        console.log("Received audio buffer");
+
+        // speech to text
         const sttStart = Date.now();
-        const transcript = await speechToText(audioPath);
+
+        const transcript = await speechToText(audioBuffer);
+
         const language = detectLanguage(transcript);
-        console.log(`[${requestId}] Detected language: ${language}`);
+
         const sttLatency = Date.now() - sttStart;
+
+        console.log(`[${requestId}] Detected language: ${language}`);
         console.log(`[${requestId}] STT latency: ${sttLatency} ms`);
         console.log("Transcript:", transcript);
 
-        //agent reasoning
+        // agent reasoning
         const agentStart = Date.now();
-        const agentResponse = await runAgent(transcript, sessionId);
+
+        const agentResponse: any = await runAgent(transcript, sessionId);
+
         const agentLatency = Date.now() - agentStart;
+
         console.log(
           `[${requestId}] Agent reasoning latency: ${agentLatency} ms`,
         );
@@ -42,21 +54,35 @@ export function startVoiceGateway(server: any) {
 
         const response: any = agentResponse;
 
-        if ((agentResponse as any).availableSlots) {
-          textResponse = `The available slots are ${(agentResponse as any).availableSlots.join(", ")}`;
-        } else if (response.result?.status === "confirmed") {
-          textResponse = `Your appointment has been successfully booked.`;
-        } else if (response.result?.status === "failed") {
+        // conversational response
+        if (response.message) {
+          textResponse = response.message;
+        }
+
+        // availability response
+        else if (response.availableSlots) {
+          textResponse = `Available slots are ${response.availableSlots.join(", ")}`;
+        }
+
+        // booking success
+        else if (response.result?.status === "confirmed") {
+          textResponse = "Your appointment has been successfully booked.";
+        }
+
+        // booking conflict
+        else if (response.result?.status === "failed") {
           textResponse = `That slot is unavailable. Available slots are ${response.result.alternatives.join(", ")}`;
         }
 
-        //text to speech
-        const audioOutput = "./audioSamples/response.wav";
-
+        // text to speech
         const ttsStart = Date.now();
 
-        await textToSpeech(textResponse, audioOutput);
+        const audioResponseBuffer = await textToSpeech(textResponse);
+
+        const audioBase64Response = audioResponseBuffer.toString("base64");
+
         const ttsLatency = Date.now() - ttsStart;
+
         console.log(`[${requestId}] TTS latency: ${ttsLatency} ms`);
 
         ws.send(
@@ -65,11 +91,12 @@ export function startVoiceGateway(server: any) {
             transcript,
             language,
             response: agentResponse,
-            audio: audioOutput,
+            audioBase64: audioBase64Response,
           }),
         );
 
         const totalLatency = Date.now() - startTime;
+
         console.log(
           `[${requestId}] Total voice pipeline latency: ${totalLatency} ms`,
         );

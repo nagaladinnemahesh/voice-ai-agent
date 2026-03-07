@@ -20,6 +20,7 @@ app.use("/appointments", appointmentRoutes);
 app.use("/agent", agentRoutes);
 app.use("/stt", sttRoutes);
 app.use("/tts", ttsRoutes);
+app.use("/audioSamples", express.static("audioSamples"));
 
 app.get("/health", (req, res) => {
   res.json({ status: "Voice AI Agent is running" });

@@ -1,19 +1,17 @@
 import OpenAI from "openai";
-import fs from "fs";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function textToSpeech(text: string, outputPath: string) {
+export async function textToSpeech(text: string) {
   const response = await openai.audio.speech.create({
     model: "gpt-4o-mini-tts",
     voice: "alloy",
     input: text,
   });
 
-  const buffer = Buffer.from(await response.arrayBuffer());
-  fs.writeFileSync(outputPath, buffer);
+  const audioBuffer = Buffer.from(await response.arrayBuffer());
 
-  return outputPath;
+  return audioBuffer;
 }

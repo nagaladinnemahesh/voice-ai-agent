@@ -1,13 +1,14 @@
 import OpenAI from "openai";
-import fs from "fs";
+import { Readable } from "stream";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function speechToText(audioPath: string) {
+export async function speechToText(audioBuffer: Buffer) {
+  const stream = Readable.from(audioBuffer);
   const response = await openai.audio.transcriptions.create({
-    file: fs.createReadStream(audioPath),
+    file: Object.assign(stream, { path: "audio.webm" }) as any,
     model: "whisper-1",
   });
 

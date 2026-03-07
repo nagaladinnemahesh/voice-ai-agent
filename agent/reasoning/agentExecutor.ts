@@ -14,9 +14,11 @@ export async function runAgent(userInput: string, sessionId: string) {
   console.log("sessionId:", sessionId);
 
   const session = await getSession(sessionId);
-  console.log("Conversation State:", session?.conversationState);
-  const conversationState = session?.ConversationState || {};
+  const conversationState = session?.conversationState || {};
+
   console.log("Session Context:", session);
+  console.log("Conversation State:", conversationState);
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
@@ -25,31 +27,46 @@ export async function runAgent(userInput: string, sessionId: string) {
         content: `
 You are a healthcare appointment assistant.
 
-Available tools:
-checkAvailability
-bookAppointment
-cancelAppointment
-rescheduleAppointment
+Your job is to understand the user's request and return JSON.
 
-Return JSON only.
+Supported actions:
+- checkAvailability
+- bookAppointment
+- cancelAppointment
+- rescheduleAppointment
 
-Example format:
+Extract:
+doctorId
+date
+time (optional)
+
+Return JSON ONLY.
+
+Example 1:
+User: "Book cardiologist tomorrow"
+
 {
- "tool": "checkAvailability",
- "parameters": {
-   "doctorId": "D1",
-   "date": "2026-03-07"
- }
+ "intent": "bookAppointment",
+ "doctorId": "cardiologist",
+ "date": "2026-03-08",
+ "time": null
+}
+
+Example 2:
+User: "Check dermatologist tomorrow"
+
+{
+ "intent": "checkAvailability",
+ "doctorId": "dermatologist",
+ "date": "2026-03-08"
+}
+
+Example 3 (missing doctor):
+{
+ "intent": "clarification",
+ "message": "Which doctor would you like to see?"
 }
 `,
-      },
-      // {
-      //   role: "system",
-      //   content: `Session Context: ${JSON.stringify(session || {})}`,
-      // },
-      {
-        role: "system",
-        content: `ConversationState: ${JSON.stringify(conversationState)}`,
       },
       {
         role: "user",
@@ -63,31 +80,48 @@ Example format:
   // removing markdown formatting if present
   const cleaned = text.replace(/```json|```/g, "").trim();
 
-  const parsed = JSON.parse(cleaned);
+  let parsed;
+
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return {
+      message: "Sorry, I couldn't understand that.",
+    };
+  }
 
   console.log("LLM Response:", cleaned);
 
-  const tool = tools[parsed.tool as keyof typeof tools];
+  // clarification response
+  if (parsed.intent === "clarification") {
+    return {
+      message: parsed.message,
+    };
+  }
+
+  const toolName = parsed.intent;
+
+  const tool = tools[toolName as keyof typeof tools];
 
   if (!tool) {
     throw new Error("Invalid tool requested by agent");
   }
 
-  console.log("Selected Tool:", parsed.tool);
-
-  const result = await tool(parsed.parameters);
-
-  // await saveSession(sessionId, {
-  //   lastTool: parsed.tool,
-  //   parameters: parsed.parameters,
-  // });
   await saveSession(sessionId, {
     conversationState: {
-      intent: parsed.tool,
-      doctorId:
-        parsed.parameters?.doctorId || conversationState.doctorId || null,
-      date: parsed.parameters?.date || conversationState.date || null,
+      intent: parsed.intent || conversationState.intent,
+      doctorId: parsed.doctorId || conversationState.doctorId || null,
+      date: parsed.date || conversationState.date || null,
     },
+  });
+
+  console.log("Selected Tool:", toolName);
+
+  const result = await tool({
+    patientId: "user123",
+    doctorId: parsed.doctorId,
+    date: parsed.date,
+    time: parsed.time,
   });
 
   console.log("session saved:", sessionId);

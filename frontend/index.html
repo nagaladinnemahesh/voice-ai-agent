@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Voice AI Assistant</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            text-align: center;
+            margin-top: 80px;
+            background: #f5f5f5;
+        }
+
+        button {
+            padding: 12px 25px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+        .box {
+            margin-top: 25px;
+            padding: 15px;
+            background: white;
+            width: 60%;
+            margin-left: auto;
+            margin-right: auto;
+            border-radius: 6px;
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <h2>Healthcare Voice Assistant</h2>
+
+    <button id="startBtn">🎤 Start Talking</button>
+    <button id="stopBtn">⏹ Stop</button>
+
+    <p id="status">Status: Idle</p>
+
+    <div class="box">
+        <p><b>You:</b></p>
+        <p id="transcript"></p>
+    </div>
+
+    <div class="box">
+        <p><b>Assistant:</b></p>
+        <p id="assistant"></p>
+    </div>
+
+    <script src="VoiceClient.js"></script>
+
+</body>
+
+</html>
