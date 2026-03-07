@@ -14,6 +14,8 @@ export async function runAgent(userInput: string, sessionId: string) {
   console.log("sessionId:", sessionId);
 
   const session = await getSession(sessionId);
+  console.log("Conversation State:", session?.conversationState);
+  const conversationState = session?.ConversationState || {};
   console.log("Session Context:", session);
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -41,9 +43,13 @@ Example format:
 }
 `,
       },
+      // {
+      //   role: "system",
+      //   content: `Session Context: ${JSON.stringify(session || {})}`,
+      // },
       {
         role: "system",
-        content: `Session Context: ${JSON.stringify(session || {})}`,
+        content: `ConversationState: ${JSON.stringify(conversationState)}`,
       },
       {
         role: "user",
@@ -71,9 +77,17 @@ Example format:
 
   const result = await tool(parsed.parameters);
 
+  // await saveSession(sessionId, {
+  //   lastTool: parsed.tool,
+  //   parameters: parsed.parameters,
+  // });
   await saveSession(sessionId, {
-    lastTool: parsed.tool,
-    parameters: parsed.parameters,
+    conversationState: {
+      intent: parsed.tool,
+      doctorId:
+        parsed.parameters?.doctorId || conversationState.doctorId || null,
+      date: parsed.parameters?.date || conversationState.date || null,
+    },
   });
 
   console.log("session saved:", sessionId);

@@ -3,9 +3,16 @@ import { redisClient } from "./redisClient";
 const SESSION_TTL = 1800; //30mins
 
 export async function saveSession(sessionId: string, data: any) {
-  await redisClient.set(`session:${sessionId}`, JSON.stringify(data), {
-    EX: SESSION_TTL,
-  });
+  const existing = await getSession(sessionId);
+  const updatedSession = { ...existing, ...data };
+
+  await redisClient.set(
+    `session:${sessionId}`,
+    JSON.stringify(updatedSession),
+    {
+      EX: SESSION_TTL,
+    },
+  );
 }
 
 export async function getSession(sessionId: string) {
