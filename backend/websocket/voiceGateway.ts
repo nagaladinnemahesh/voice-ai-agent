@@ -2,10 +2,8 @@ import { WebSocketServer } from "ws";
 import { speechToText } from "../../services/speech_to_text/whisperService";
 import { runAgent } from "../../agent/reasoning/agentExecutor";
 import { textToSpeech } from "../../services/text_to_speech/openaiTTS";
-import { text } from "node:stream/consumers";
-import { response } from "express";
 import { v4 as uuidv4 } from "uuid";
-import { request } from "node:http";
+import { detectLanguage } from "../../services/language_detection/detectLanguage";
 
 export function startVoiceGateway(server: any) {
   const wss = new WebSocketServer({ server });
@@ -26,6 +24,8 @@ export function startVoiceGateway(server: any) {
         //speech to text
         const sttStart = Date.now();
         const transcript = await speechToText(audioPath);
+        const language = detectLanguage(transcript);
+        console.log(`[${requestId}] Detected language: ${language}`);
         const sttLatency = Date.now() - sttStart;
         console.log(`[${requestId}] STT latency: ${sttLatency} ms`);
         console.log("Transcript:", transcript);
@@ -63,6 +63,7 @@ export function startVoiceGateway(server: any) {
           JSON.stringify({
             requestId,
             transcript,
+            language,
             response: agentResponse,
             audio: audioOutput,
           }),
