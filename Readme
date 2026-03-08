@@ -1,0 +1,313 @@
+# 2Care.ai — Real-Time Multilingual Voice AI Agent
+
+A real-time voice AI agent for clinical appointment booking. Patients can book, reschedule, and cancel appointments entirely through voice conversations in **English, Hindi, or Tamil** — no forms, no clicks.
+
+![Architecture](architecture.png)
+
+---
+
+## Features
+
+- **Voice-first** — speak naturally, agent responds in audio
+- **Multilingual** — English, Hindi, Tamil with auto-detection
+- **Full appointment lifecycle** — book, reschedule, cancel, list
+- **Conflict detection** — real slot locking via PostgreSQL `FOR UPDATE`
+- **Two-layer memory** — session state in Redis + permanent patient history
+- **Outbound campaigns** — reminder and follow-up call support
+- **Latency logging** — every turn logs STT / Agent / TTS / Total ms
+
+---
+
+## Tech Stack
+
+| Layer             | Technology                     |
+| ----------------- | ------------------------------ |
+| Backend           | Node.js + TypeScript + Express |
+| Real-time         | WebSockets (ws)                |
+| Speech-to-Text    | OpenAI Whisper                 |
+| Intent Detection  | GPT-4o-mini (max_tokens: 20)   |
+| Text-to-Speech    | OpenAI TTS (alloy / shimmer)   |
+| Session Memory    | Redis (TTL 30 min)             |
+| Persistent Memory | Redis (no TTL)                 |
+| Appointment Data  | PostgreSQL 15                  |
+| Deployment        | Docker + docker-compose        |
+
+---
+
+## Project Structure
+
+```
+voice-ai-agent/
+├── agent/
+│   ├── reasoning/agentExecutor.ts      ← State machine (core logic)
+│   ├── tools/                          ← book / cancel / reschedule / availability
+│   ├── campaign/                       ← outbound campaign runner
+│   └── state/conversationState.ts
+├── backend/
+│   ├── server.ts                       ← Express + static frontend
+│   ├── websocket/voiceGateway.ts       ← WebSocket pipeline
+│   └── routes/                         ← REST endpoints
+├── database/
+│   ├── db.ts                           ← PostgreSQL connection pool
+│   └── appointmentRepository.ts        ← All DB queries
+├── memory/
+│   ├── session_memory/                 ← Redis session (TTL 30min)
+│   └── persistent_memory/             ← Redis patient profile (no TTL)
+├── services/
+│   ├── speech_to_text/whisperService.ts
+│   ├── text_to_speech/openaiTTS.ts
+│   └── language_detection/detectLanguage.ts
+├── scheduler/
+│   └── appointment_engine/             ← booking / conflict / reschedule logic
+├── frontend/index.html                 ← Single-file demo UI
+├── schema.sql                          ← PostgreSQL schema
+├── docker-compose.yml
+├── Dockerfile
+└── architecture.png
+```
+
+---
+
+## Setup Instructions
+
+### Prerequisites
+
+- Docker + Docker Compose
+- Node.js 20+ (for local dev)
+- OpenAI API key
+
+### 1. Clone and configure
+
+```bash
+git clone <your-repo-url>
+cd voice-ai-agent
+cp .env.example .env
+```
+
+Edit `.env` and add your keys:
+
+```env
+OPENAI_API_KEY=sk-...
+
+REDIS_URL=redis://localhost:6379
+
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=voiceagent
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+```
+
+### 2. Start infrastructure (Redis + PostgreSQL)
+
+```bash
+docker compose up -d redis postgres
+```
+
+The `schema.sql` file runs automatically on first PostgreSQL start, creating all tables and seeding the doctors.
+
+Verify tables:
+
+```bash
+docker exec -it voice-ai-agent-postgres-1 psql -U postgres -d voiceagent -c "\dt"
+```
+
+### 3. Install dependencies
+
+```bash
+npm install
+```
+
+### 4. Start the server
+
+```bash
+npm run dev
+```
+
+You should see:
+
+```
+✓ Redis connected
+✓ PostgreSQL connected
+✓ Server → http://localhost:5000
+✓ Frontend → http://localhost:5000/index.html
+```
+
+### 5. Open the frontend
+
+```
+http://localhost:5000/index.html
+```
+
+Click the mic button and start talking.
+
+---
+
+### Run everything in Docker
+
+```bash
+docker compose up -d
+docker compose logs app -f
+```
+
+---
+
+## Database Design
+
+### appointments
+
+```
+id            SERIAL PRIMARY KEY
+patient_id    VARCHAR(64)
+doctor_id     VARCHAR(64)
+date          DATE
+time          TIME
+status        VARCHAR(32)   -- confirmed | cancelled | rescheduled
+language      VARCHAR(10)
+booked_at     TIMESTAMP
+updated_at    TIMESTAMP
+```
+
+### doctor_schedule
+
+```
+doctor_id     VARCHAR(64)
+date          DATE
+slot_time     TIME
+is_available  BOOLEAN       -- flips false when booked
+UNIQUE (doctor_id, date, slot_time)
+```
+
+Conflict prevention uses PostgreSQL `SELECT ... FOR UPDATE` row locking — two patients cannot grab the same slot simultaneously even under concurrent requests.
+
+Available slots per doctor per day: `10:00, 11:30, 14:00, 16:30`
+
+---
+
+## Architecture & Memory Design
+
+### Agent State Machine
+
+The agent uses a 7-stage state machine instead of calling the LLM on every turn:
+
+```
+IDLE → BOOK_ASK_DOCTOR → BOOK_ASK_DATE → BOOK_ASK_SLOT
+     → CANCEL_CONFIRM
+     → RESCHEDULE_ASK_DATE → RESCHEDULE_ASK_SLOT
+```
+
+The LLM (GPT-4o-mini) is called **once per conversation turn** at the IDLE stage for intent classification with `max_tokens: 20`. All other turns use regex extraction (~0ms). This keeps agent processing under 25ms regardless of conversation length.
+
+### Two-Layer Memory
+
+**Session Memory (Redis, TTL 30 min)**
+
+- Stores current stage + partial booking data within a session
+- Key: `session:{sessionId}`
+- Wiped after 30 minutes of inactivity
+
+**Persistent Memory (Redis, no TTL)**
+
+- Stores patient's appointment history, preferred language, last doctor
+- Key: `patient:profile:{patientId}`
+- Never expires — survives across sessions
+
+---
+
+## Latency Breakdown
+
+| Stage          | Actual           | Target      |
+| -------------- | ---------------- | ----------- |
+| Whisper STT    | ~1800–2200ms     | 120ms       |
+| Intent LLM     | ~400–800ms       | 200ms       |
+| Agent logic    | ~15–25ms         | —           |
+| Tool call (DB) | ~10–30ms         | —           |
+| OpenAI TTS     | ~1200–1700ms     | 100ms       |
+| **Total**      | **~3500–4500ms** | **< 450ms** |
+
+**Why the gap exists:** Whisper and OpenAI TTS are batch APIs — they process the full audio before returning. Achieving the 450ms target requires:
+
+- **Deepgram** streaming STT (returns transcript word-by-word as user speaks)
+- **ElevenLabs** streaming TTS (streams audio chunks as text is generated)
+- These would bring total latency under 500ms realistically
+
+All latency is measured and logged on every turn:
+
+```
+STT: 1923ms | AGENT: 18ms | TTS: 1441ms | TOTAL: 3382ms
+```
+
+---
+
+## Multilingual Support
+
+| Language | Detection Method                  | TTS Voice |
+| -------- | --------------------------------- | --------- |
+| English  | Unicode + LLM fallback            | alloy     |
+| Hindi    | Devanagari script detection (0ms) | shimmer   |
+| Tamil    | Tamil script detection (0ms)      | shimmer   |
+
+Language preference is saved to persistent memory on first detection and reused on all subsequent sessions.
+
+---
+
+## Resetting for a Fresh Demo
+
+Clear all bookings and session data:
+
+```bash
+# Clear PostgreSQL appointments and slots
+docker exec -it voice-ai-agent-postgres-1 psql -U postgres -d voiceagent \
+  -c "TRUNCATE appointments, doctor_schedule RESTART IDENTITY;"
+
+# Clear Redis session and patient memory
+docker exec -it voice-ai-agent-redis-1 redis-cli FLUSHALL
+```
+
+---
+
+## Known Limitations
+
+- `patientId` is hardcoded as `"user123"` — no auth system
+- Available slots are fixed (`10:00, 11:30, 14:00, 16:30`) — not a real calendar
+- Total latency ~4s vs 450ms target (Whisper + TTS bottleneck)
+- Outbound campaign uses `setInterval` — not production-safe (use BullMQ or similar)
+- No barge-in / interrupt handling mid-response
+- No HTTPS / WSS (plain HTTP for local demo)
+
+---
+
+## Trade-offs
+
+| Decision                    | Reason                                                                  |
+| --------------------------- | ----------------------------------------------------------------------- |
+| State machine over pure LLM | Reduces LLM calls from ~5 per turn to 1, cutting latency by ~4000ms     |
+| Redis for session over DB   | Sub-millisecond reads, automatic TTL expiry, no schema needed           |
+| PostgreSQL for appointments | ACID compliance, row locking for conflict prevention, queryable history |
+| Whisper over streaming STT  | Simplicity — streaming STT would require significant pipeline redesign  |
+| ts-node over compiled JS    | Faster dev iteration, no build step needed                              |
+
+---
+
+## Evaluation Criteria Coverage
+
+| Area                                 | Weight | Implementation                                          |
+| ------------------------------------ | ------ | ------------------------------------------------------- |
+| Real-time voice architecture         | 20%    | WebSocket pipeline, latency logging on every turn       |
+| Agent reasoning + tool orchestration | 20%    | State machine, 4 tools, LLM intent detection            |
+| Memory design                        | 15%    | Redis session + persistent, PostgreSQL appointments     |
+| Appointment & conflict management    | 10%    | PostgreSQL FOR UPDATE locking, alternatives on conflict |
+| Multilingual handling                | 10%    | Auto-detect en/hi/ta, persisted language preference     |
+| Performance optimisation             | 10%    | Single LLM call per turn, regex entity extraction       |
+| Code quality & structure             | 10%    | Modular, separated concerns, TypeScript                 |
+| Documentation                        | 5%     | This README                                             |
+
+---
+
+## Bonus Features Implemented
+
+- ✅ Redis memory with TTL
+- ✅ Background campaign scheduler (setInterval-based)
+- ✅ Docker deployment
+- ⚠️ Barge-in handling — not implemented
+- ⚠️ Horizontal scaling — not implemented
