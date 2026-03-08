@@ -1,4 +1,4 @@
-import { bookAppointment } from "./bookingService";
+import { bookAppointment, cancelBooking } from "./bookingService";
 
 export async function rescheduleAppointment(
   appointmentId: string,
@@ -6,15 +6,26 @@ export async function rescheduleAppointment(
   newTime: string,
   patientId: string,
   doctorId: string,
+  oldDate?: string,
+  oldTime?: string,
 ) {
-  console.log(`Cancelling appointment ${appointmentId}`);
-
+  // book the new slot first — fails fast if it's taken
   const newBooking = await bookAppointment(
     patientId,
     doctorId,
     newDate,
     newTime,
   );
+
+  if (newBooking.status !== "confirmed") {
+    return newBooking;
+  }
+
+  // free the old slot — patientId is now passed as first arg
+  if (oldDate && oldTime) {
+    await cancelBooking(patientId, doctorId, oldDate, oldTime);
+    console.log(`Freed old slot: ${doctorId} ${oldDate} ${oldTime}`);
+  }
 
   return newBooking;
 }

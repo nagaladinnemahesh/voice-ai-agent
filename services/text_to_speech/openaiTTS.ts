@@ -1,13 +1,20 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export async function textToSpeech(text: string) {
+// shimmer handles Hindi and Tamil better than alloy
+const voiceMap: Record<string, "alloy" | "shimmer"> = {
+  en: "alloy",
+  hi: "shimmer",
+  ta: "shimmer",
+};
+
+export async function textToSpeech(text: string, language = "en") {
+  const voice = voiceMap[language] ?? "alloy";
+
   const response = await openai.audio.speech.create({
     model: "gpt-4o-mini-tts",
-    voice: "alloy",
+    voice,
     input: text,
   });
 

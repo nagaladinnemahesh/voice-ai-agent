@@ -1,64 +1,359 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-    <title>Voice AI Assistant</title>
-
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>2Care — Voice Assistant</title>
     <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
-            font-family: Arial;
-            text-align: center;
-            margin-top: 80px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            padding: 60px 20px 40px;
+            color: #333;
         }
 
-        button {
-            padding: 12px 25px;
-            margin: 10px;
-            font-size: 16px;
+        h1 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #111;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 48px;
+        }
+
+        /* mic button */
+        #micBtn {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            border: none;
+            background: #2563eb;
+            color: white;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, transform 0.1s;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
         }
 
-        #status {
+        #micBtn:hover {
+            background: #1d4ed8;
+        }
+
+        #micBtn:active {
+            transform: scale(0.95);
+        }
+
+        #micBtn.recording {
+            background: #dc2626;
+            box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4);
+        }
+
+        #micBtn.processing {
+            background: #9ca3af;
+            cursor: default;
+        }
+
+        #micBtn svg {
+            width: 36px;
+            height: 36px;
+        }
+
+        /* instruction text below mic */
+        #instruction {
             margin-top: 20px;
-            font-weight: bold;
+            font-size: 14px;
+            color: #555;
+            height: 20px;
         }
 
-        .box {
-            margin-top: 25px;
-            padding: 15px;
-            background: white;
-            width: 60%;
-            margin-left: auto;
-            margin-right: auto;
-            border-radius: 6px;
-            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+        /* status badge */
+        #statusBadge {
+            margin-top: 12px;
+            font-size: 12px;
+            color: #888;
+            background: #e5e7eb;
+            padding: 4px 12px;
+            border-radius: 999px;
+        }
+
+        /* chat box — fixed size, messages scroll inside, page never grows */
+        #chat {
+            margin-top: 40px;
+            width: 420px;
+            height: 280px;
+            /* fixed height — never changes */
+            overflow-y: auto;
+            /* scroll inside the box */
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+        }
+
+        .msg {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .msg-label {
+            font-size: 11px;
+            color: #aaa;
+            padding: 0 4px;
+        }
+
+        .bubble {
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.5;
+            max-width: 100%;
+        }
+
+        .msg.user .bubble {
+            background: #dbeafe;
+            color: #1e3a8a;
+            align-self: flex-end;
+            border-radius: 12px 12px 2px 12px;
+        }
+
+        .msg.agent .bubble {
+            background: #fff;
+            color: #111;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px 12px 12px 2px;
+        }
+
+        /* connection status */
+        #connDot {
+            position: fixed;
+            top: 16px;
+            right: 20px;
+            font-size: 12px;
+            color: #888;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #connDot::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #d1d5db;
+        }
+
+        #connDot.connected::before {
+            background: #22c55e;
+        }
+
+        #connDot.error::before {
+            background: #ef4444;
         }
     </style>
-
 </head>
 
 <body>
 
-    <h2>Healthcare Voice Assistant</h2>
+    <h1>2Care Voice Assistant</h1>
+    <p class="subtitle">Clinical Appointment Booking</p>
 
-    <button id="startBtn">🎤 Start Talking</button>
-    <button id="stopBtn">⏹ Stop</button>
+    <button id="micBtn" aria-label="Start recording">
+        <!-- mic icon -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <rect x="9" y="2" width="6" height="11" rx="3" />
+            <path d="M5 10a7 7 0 0 0 14 0" />
+            <line x1="12" y1="19" x2="12" y2="22" />
+            <line x1="9" y1="22" x2="15" y2="22" />
+        </svg>
+    </button>
 
-    <p id="status">Status: Idle</p>
+    <p id="instruction">Click to start speaking</p>
+    <span id="statusBadge">Idle</span>
 
-    <div class="box">
-        <p><b>You:</b></p>
-        <p id="transcript"></p>
-    </div>
+    <div id="chat"></div>
 
-    <div class="box">
-        <p><b>Assistant:</b></p>
-        <p id="assistant"></p>
-    </div>
+    <div id="connDot">Connecting...</div>
 
-    <script src="VoiceClient.js"></script>
+    <script>
+        // connects to the same host that served this page
+        const wsUrl = `ws://${location.hostname}:${location.port || 5000}`;
+        const ws = new WebSocket(wsUrl);
 
+        let mediaRecorder, audioChunks = [], isRecording = false, isProcessing = false;
+
+        const micBtn = document.getElementById("micBtn");
+        const instruction = document.getElementById("instruction");
+        const statusBadge = document.getElementById("statusBadge");
+        const chat = document.getElementById("chat");
+        const connDot = document.getElementById("connDot");
+
+        // ── safe base64 for large audio buffers ──
+        function toBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let bin = "";
+            for (let i = 0; i < bytes.length; i += 8192)
+                bin += String.fromCharCode(...bytes.subarray(i, i + 8192));
+            return btoa(bin);
+        }
+
+        // ── add chat message ──
+        function addMsg(role, text) {
+            const wrap = document.createElement("div");
+            wrap.className = "msg " + role;
+            wrap.innerHTML = `
+      <div class="msg-label">${role === "user" ? "You" : "Assistant"}</div>
+      <div class="bubble">${text}</div>`;
+            chat.appendChild(wrap);
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        // ── parse agent response → readable text ──
+        function parseResponse(res) {
+            if (!res) return "Sorry, couldn't process that.";
+            if (res.message) return res.message;
+            if (res.availableSlots)
+                return `Available slots: ${res.availableSlots.join(", ")}. Which works for you?`;
+            if (res.tool === "bookAppointment") {
+                if (res.result?.status === "confirmed")
+                    return `✓ Booked — ${res.result.doctorId} on ${res.result.date} at ${res.result.time}.`;
+                if (res.result?.message === "Cannot book an appointment in the past") {
+                    const a = res.result.alternatives?.length ? ` Try: ${res.result.alternatives.join(", ")}.` : "";
+                    return `That time has already passed.${a}`;
+                }
+                if (res.result?.status === "failed")
+                    return `Slot unavailable. Available: ${res.result.alternatives?.join(", ") ?? "none"}.`;
+            }
+            if (res.tool === "cancelAppointment") return "✓ Appointment cancelled.";
+            if (res.tool === "rescheduleAppointment" && res.result?.status === "confirmed")
+                return `✓ Rescheduled to ${res.result.date} at ${res.result.time}.`;
+            return "Sorry, couldn't process your request.";
+        }
+
+        // ── set UI state ──
+        function setIdle() {
+            micBtn.className = "";
+            instruction.textContent = "Click to start speaking";
+            statusBadge.textContent = "Idle";
+            isRecording = false; isProcessing = false;
+        }
+
+        function setRecording() {
+            micBtn.className = "recording";
+            instruction.textContent = "Listening... click to stop";
+            statusBadge.textContent = "Recording";
+            isRecording = true;
+        }
+
+        function setProcessing() {
+            micBtn.className = "processing";
+            instruction.textContent = "Processing your request...";
+            statusBadge.textContent = "Processing";
+            isProcessing = true; isRecording = false;
+        }
+
+        function setSpeaking() {
+            micBtn.className = "";
+            instruction.textContent = "Playing response...";
+            statusBadge.textContent = "Speaking";
+        }
+
+        // ── websocket ──
+        ws.onopen = () => {
+            connDot.textContent = "Connected";
+            connDot.className = "connected";
+            setIdle();
+        };
+
+        ws.onclose = () => {
+            connDot.textContent = "Disconnected";
+            connDot.className = "error";
+            setIdle();
+        };
+
+        ws.onerror = () => {
+            connDot.textContent = "Connection error";
+            connDot.className = "error";
+            addMsg("agent", "Cannot connect. Make sure the server is running on port 5000.");
+            setIdle();
+        };
+
+        ws.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+
+            if (data.transcript) addMsg("user", data.transcript);
+
+            const text = parseResponse(data.response);
+            addMsg("agent", text);
+
+            if (data.audioBase64) {
+                setSpeaking();
+                const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
+                audio.play().catch(() => { });
+                audio.onended = setIdle;
+            } else {
+                setIdle();
+            }
+        };
+
+        // ── recording ──
+        async function startRecording() {
+            audioChunks = [];
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch {
+                addMsg("agent", "Microphone access denied. Allow mic permissions and try again.");
+                return;
+            }
+
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+            mediaRecorder.onstop = async () => {
+                setProcessing();
+                const blob = new Blob(audioChunks, { type: "audio/webm" });
+                const b64 = toBase64(await blob.arrayBuffer());
+                ws.send(JSON.stringify({ audioBase64: b64, sessionId: "user123" }));
+                stream.getTracks().forEach(t => t.stop());
+            };
+
+            mediaRecorder.start();
+            setRecording();
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+        }
+
+        micBtn.addEventListener("click", () => {
+            if (isProcessing) return;
+            isRecording ? stopRecording() : startRecording();
+        });
+    </script>
 </body>
 
 </html>
