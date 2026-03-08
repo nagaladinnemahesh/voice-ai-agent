@@ -5,8 +5,7 @@ export async function bookAppointmentTool(params: any) {
 
   const result = await bookAppointment(patientId, doctorId, date, time);
 
-  return {
-    tool: "bookAppointment",
-    result,
-  };
+  console.log("BOOKING TOOL RESULT:", result);
+
+  return result;
 }

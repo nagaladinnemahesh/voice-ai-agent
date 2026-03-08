@@ -1,24 +1,23 @@
-import { getAvailableSlots } from "./availabilityService";
-import { checkSlotConflict } from "./conflictResolver";
-
 export async function bookAppointment(
   patientId: string,
   doctorId: string,
   date: string,
   time: string,
 ) {
-  const availbaleSlots = await getAvailableSlots(doctorId, date);
-  const conflictCheck = checkSlotConflict(time, availbaleSlots);
+  const allSlots = ["10:00", "11:30", "14:00", "16:30"];
 
-  if (conflictCheck.conflict) {
+  const bookedSlots = ["11:30"];
+
+  // conflict check
+  if (bookedSlots.includes(time)) {
     return {
       status: "failed",
-      message: conflictCheck.message,
-      alternatives: conflictCheck.alternatives,
+      message: "Slot unavailable",
+      alternatives: allSlots.filter((slot) => !bookedSlots.includes(slot)),
     };
   }
 
-  // stimulate booking
+  // simulate booking success
   return {
     status: "confirmed",
     patientId,

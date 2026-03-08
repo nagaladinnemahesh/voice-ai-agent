@@ -14,14 +14,35 @@ ws.onopen = () => {
 ws.onmessage = async (event) => {
   const data = JSON.parse(event.data);
 
-  transcriptUI.innerText = data.transcript;
+  console.log("SERVER RESPONSE:", data);
 
-  assistantUI.innerText = JSON.stringify(data.response);
+  // show transcript
+  transcriptUI.innerText = data.transcript || "";
+
+  // convert backend response to readable text
+  let assistantText = "";
+
+  const res = data.response;
+
+  if (res?.message) {
+    assistantText = res.message;
+  } else if (res?.availableSlots) {
+    assistantText = `Available slots are ${res.availableSlots.join(", ")}`;
+  } else if (res?.result?.status === "confirmed") {
+    assistantText = "Your appointment has been successfully booked.";
+  } else if (res?.result?.status === "failed") {
+    assistantText = `That slot is unavailable. Available slots are ${res.result.alternatives.join(", ")}`;
+  } else {
+    assistantText = "Sorry, I couldn't process your request.";
+  }
+
+  assistantUI.innerText = assistantText;
 
   status.innerText = "Status: Playing response";
 
+  // play audio response
   if (data.audioBase64) {
-    const audio = new Audio(`data:audio/wav;base64,${data.audiobase64}`);
+    const audio = new Audio(`data:audio/wav;base64,${data.audioBase64}`);
 
     audio.play();
 
